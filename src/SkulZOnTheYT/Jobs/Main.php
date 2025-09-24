@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JobsPlugin;
+namespace SkulZOnTheYT\Jobs;
 
 use forms\menu\Button;
 use forms\menu\Image;
