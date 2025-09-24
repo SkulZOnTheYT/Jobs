@@ -22,61 +22,50 @@ use pocketmine\item\VanillaItems;
 class Main extends PluginBase implements Listener {
 
     private Config $jobsConfig;
-    private Config $settingsConfig;
     private array $playerJobs = [];
-    private array $playerLevels = [];
-    private array $jobCooldowns = [];
 
     public function onEnable(): void {
         @mkdir($this->getDataFolder());
-
-        $this->jobsConfig = new Config($this->getDataFolder() . "jobs.yml", Config::YAML, []);
-        $this->playerJobs = $this->jobsConfig->get("jobs", []);
-        $this->playerLevels = $this->jobsConfig->get("levels", []);
-
-        $this->settingsConfig = new Config($this->getDataFolder() . "config.yml", Config::YAML);
+        $this->jobsConfig = new Config($this->getDataFolder() . "jobs.yml", Config::YAML, [
+            "jobs" => [],
+            "levels" => []
+        ]);
+        $this->playerJobs = $this->jobsConfig->getAll();
 
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getLogger()->info("Jobs Plugin Enabled!");
     }
 
     public function onDisable(): void {
-        $this->jobsConfig->set("jobs", $this->playerJobs);
-        $this->jobsConfig->set("levels", $this->playerLevels);
+        $this->jobsConfig->setAll($this->playerJobs);
         $this->jobsConfig->save();
     }
 
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool {
         if ($command->getName() === "jobs") {
-            if (!$sender instanceof Player) {
-                $sender->sendMessage("§cThis command can only be used in-game.");
-                return true;
-            }
-
-            if (empty($args)) {
-                $this->openJobForm($sender);
-                return true;
-            }
-
-            switch (strtolower($args[0])) {
-                case "leaderboard":
-                case "lead":
+            if ($sender instanceof Player) {
+                if (isset($args[0]) && in_array(strtolower($args[0]), ["leaderboard", "lead"])) {
                     $this->showLeaderboard($sender);
-                    return true;
+                } else {
+                    $this->openJobForm($sender);
+                }
+            } else {
+                $sender->sendMessage("§cThis command can only be used in-game.");
             }
+            return true;
         }
         return false;
     }
 
     public function openJobForm(Player $player): void {
         $form = new MenuForm(
-            "Choose a Job",
-            "Select your profession",
+            "Choose Your Job",
+            "Please select your job",
             [
-                new Button("⚒ Miner", Image::path("textures/items/diamond_pickaxe.png")),
-                new Button("🪓 Woodcutter", Image::path("textures/items/diamond_axe.png")),
-                new Button("🎣 Fisher", Image::path("textures/items/fishing_rod.png")),
-                new Button("🌾 Farmer", Image::path("textures/items/diamond_hoe.png")),
+                new Button("Miner", Image::path("textures/items/diamond_pickaxe.png")),
+                new Button("Woodcutter", Image::path("textures/items/diamond_axe.png")),
+                new Button("Fisher", Image::path("textures/items/fishing_rod_cast.png")),
+                new Button("Farmer", Image::path("textures/items/diamond_hoe.png")),
             ],
             function(Player $player, Button $selected): void {
                 $jobMap = [
@@ -89,22 +78,13 @@ class Main extends PluginBase implements Listener {
                 $job = $jobMap[$index] ?? null;
 
                 if ($job !== null) {
-                    $name = $player->getName();
-                    $cooldown = $this->settingsConfig->get("jobSwitchCooldown", 3600);
+                    $xuid = $player->getXuid();
+                    $this->playerJobs["jobs"][$xuid] = $job;
+                    $this->playerJobs["levels"][$xuid]["level"] = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
+                    $this->playerJobs["levels"][$xuid]["exp"] = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
+                    $this->playerJobs["levels"][$xuid]["username"] = $player->getName();
 
-                    if (isset($this->jobCooldowns[$name]) && time() - $this->jobCooldowns[$name] < $cooldown) {
-                        $remaining = $cooldown - (time() - $this->jobCooldowns[$name]);
-                        $player->sendMessage("§cYou must wait {$remaining}s before switching jobs again.");
-                        return;
-                    }
-
-                    $this->playerJobs[$name] = $job;
-                    $this->jobCooldowns[$name] = time();
-
-                    if (!isset($this->playerLevels[$name])) {
-                        $this->playerLevels[$name] = ["level" => 1, "exp" => 0];
-                    }
-                    $player->sendMessage("§aYou chose job §e" . ucfirst($job));
+                    $player->sendMessage("§aYou selected job §e" . ucfirst($job));
                 }
             }
         );
@@ -113,133 +93,111 @@ class Main extends PluginBase implements Listener {
 
     public function onBlockBreak(BlockBreakEvent $event): void {
         $player = $event->getPlayer();
-        $name = $player->getName();
-        if (!isset($this->playerJobs[$name])) return;
+        $xuid = $player->getXuid();
+        $job = $this->playerJobs["jobs"][$xuid] ?? null;
+        if ($job === null) return;
 
-        $job = $this->playerJobs[$name];
         $block = $event->getBlock();
         $reward = 0;
-        $xp = 0;
 
         switch ($job) {
             case "miner":
-                $minerBlocks = [
-                    BlockTypeIds::COAL_ORE, BlockTypeIds::IRON_ORE, BlockTypeIds::GOLD_ORE,
-                    BlockTypeIds::DIAMOND_ORE, BlockTypeIds::EMERALD_ORE, BlockTypeIds::REDSTONE_ORE,
-                    BlockTypeIds::COPPER_ORE, BlockTypeIds::LAPIS_LAZULI_ORE, BlockTypeIds::DEEPSLATE_DIAMOND_ORE,
-                ];
-                if (in_array($block->getTypeId(), $minerBlocks, true)) {
-                    $reward = $this->settingsConfig->get("rewards")["miner"];
-                    $xp = $this->settingsConfig->get("xp")["miner"];
+                if (in_array($block->getTypeId(), [
+                    BlockTypeIds::COAL_ORE, BlockTypeIds::IRON_ORE,
+                    BlockTypeIds::GOLD_ORE, BlockTypeIds::DIAMOND_ORE,
+                    BlockTypeIds::COPPER_ORE, BlockTypeIds::REDSTONE_ORE,
+                    BlockTypeIds::EMERALD_ORE, BlockTypeIds::LAPIS_ORE,
+                    BlockTypeIds::DEEPSLATE_COAL_ORE, BlockTypeIds::DEEPSLATE_IRON_ORE,
+                    BlockTypeIds::DEEPSLATE_GOLD_ORE, BlockTypeIds::DEEPSLATE_DIAMOND_ORE,
+                    BlockTypeIds::DEEPSLATE_COPPER_ORE, BlockTypeIds::DEEPSLATE_REDSTONE_ORE,
+                    BlockTypeIds::DEEPSLATE_EMERALD_ORE, BlockTypeIds::DEEPSLATE_LAPIS_ORE,
+                ], true)) {
+                    $reward = 20;
                 }
                 break;
 
             case "woodcutter":
-                $woodBlocks = [
-                    BlockTypeIds::OAK_LOG, BlockTypeIds::BIRCH_LOG, BlockTypeIds::SPRUCE_LOG,
-                    BlockTypeIds::JUNGLE_LOG, BlockTypeIds::ACACIA_LOG, BlockTypeIds::DARK_OAK_LOG,
+                if (in_array($block->getTypeId(), [
+                    BlockTypeIds::OAK_LOG, BlockTypeIds::BIRCH_LOG,
+                    BlockTypeIds::SPRUCE_LOG, BlockTypeIds::JUNGLE_LOG,
+                    BlockTypeIds::ACACIA_LOG, BlockTypeIds::DARK_OAK_LOG,
                     BlockTypeIds::MANGROVE_LOG, BlockTypeIds::CHERRY_LOG,
-                ];
-                if (in_array($block->getTypeId(), $woodBlocks, true)) {
-                    $reward = $this->settingsConfig->get("rewards")["woodcutter"];
-                    $xp = $this->settingsConfig->get("xp")["woodcutter"];
+                    BlockTypeIds::CRIMSON_STEM, BlockTypeIds::WARPED_STEM,
+                ], true)) {
+                    $reward = 10;
                 }
                 break;
 
             case "farmer":
-                $farmerBlocks = [
-                    BlockTypeIds::WHEAT, BlockTypeIds::CARROTS, BlockTypeIds::POTATOES,
-                    BlockTypeIds::BEETROOTS, BlockTypeIds::MELON, BlockTypeIds::PUMPKIN,
-                ];
-                if (in_array($block->getTypeId(), $farmerBlocks, true)) {
-                    $reward = $this->settingsConfig->get("rewards")["farmer"];
-                    $xp = $this->settingsConfig->get("xp")["farmer"];
+                if (in_array($block->getTypeId(), [
+                    BlockTypeIds::WHEAT, BlockTypeIds::CARROTS,
+                    BlockTypeIds::POTATOES, BlockTypeIds::BEETROOTS,
+                ], true)) {
+                    $reward = 5;
                 }
                 break;
         }
 
         if ($reward > 0) {
-            $this->rewardPlayer($player, $reward, $xp);
+            $this->addMoney($player, $reward);
         }
     }
 
     public function onTransaction(InventoryTransactionEvent $event): void {
         $player = $event->getTransaction()->getSource();
-        $name = $player->getName();
+        $xuid = $player->getXuid();
 
-        if (!isset($this->playerJobs[$name]) || $this->playerJobs[$name] !== "fisher") {
-            return;
-        }
+        $job = $this->playerJobs["jobs"][$xuid] ?? null;
+        if ($job !== "fisher") return;
 
         foreach ($event->getTransaction()->getActions() as $action) {
             $item = $action->getTargetItem();
             $fishIds = [
-                VanillaItems::RAW_FISH()->getTypeId(),
-                VanillaItems::RAW_SALMON()->getTypeId(),
+                VanillaItems::COD()->getTypeId(),
+                VanillaItems::SALMON()->getTypeId(),
                 VanillaItems::PUFFERFISH()->getTypeId(),
+                VanillaItems::TROPICAL_FISH()->getTypeId(),
             ];
             if (in_array($item->getTypeId(), $fishIds, true)) {
-                $reward = $this->settingsConfig->get("rewards")["fisher"];
-                $xp = $this->settingsConfig->get("xp")["fisher"];
-                $this->rewardPlayer($player, $reward, $xp);
+                $this->addMoney($player, 15);
             }
         }
     }
 
-    private function rewardPlayer(Player $player, int $reward, int $xp): void {
+    private function addMoney(Player $player, int $amount): void {
         BedrockEconomyAPI::CLOSURE()->add(
             xuid: $player->getXuid(),
             username: $player->getName(),
-            amount: $reward,
+            amount: $amount,
             decimals: 0,
-            onSuccess: function() use ($player, $reward, $xp): void {
-                $player->sendPopup("§a+§e$reward §amoney from your job");
-                $this->addExp($player, $xp);
+            onSuccess: static function() use ($player, $amount): void {
+                $player->sendPopup("§a+§e$amount §amoney from your job");
             },
             onError: static function() use ($player): void {
-                $player->sendPopup("§cFailed to add money to " . $player->getName());
+                $player->sendPopup("§cFailed to add money to your account");
             },
         );
     }
 
-    private function addExp(Player $player, int $exp): void {
-        $name = $player->getName();
-
-        if (!isset($this->playerLevels[$name])) {
-            $this->playerLevels[$name] = ["level" => 1, "exp" => 0];
-        }
-
-        $this->playerLevels[$name]["exp"] += $exp;
-
-        $baseXp = $this->settingsConfig->get("level")["xp_required"];
-        $scaling = $this->settingsConfig->get("level")["scaling"];
-        $currentLevel = $this->playerLevels[$name]["level"];
-        $neededXp = (int)($baseXp * ($scaling ** ($currentLevel - 1)));
-
-        if ($this->playerLevels[$name]["exp"] >= $neededXp) {
-            $this->playerLevels[$name]["exp"] = 0;
-            $this->playerLevels[$name]["level"]++;
-            $player->sendMessage("§bYou leveled up! Now level " . $this->playerLevels[$name]["level"]);
-        }
-    }
-
     private function showLeaderboard(Player $player): void {
-        if (empty($this->playerLevels)) {
-            $player->sendMessage("§cNo players in leaderboard yet.");
-            return;
+        $entries = [];
+        foreach ($this->playerJobs["levels"] as $xuid => $data) {
+            $entries[] = [
+                "username" => $data["username"] ?? "Unknown",
+                "job" => $this->playerJobs["jobs"][$xuid] ?? "None",
+                "level" => $data["level"] ?? 1,
+            ];
         }
 
-        uasort($this->playerLevels, fn($a, $b) => $b["level"] <=> $a["level"]);
+        usort($entries, fn($a, $b) => $b["level"] <=> $a["level"]);
+        $top = array_slice($entries, 0, 10);
 
-        $limit = $this->settingsConfig->get("leaderboard")["top_limit"] ?? 10;
-        $message = "§6=== Jobs Leaderboard ===\n";
+        $msg = "§6=== Jobs Leaderboard ===\n";
         $rank = 1;
-        foreach ($this->playerLevels as $name => $data) {
-            $job = $this->playerJobs[$name] ?? "None";
-            $message .= "§e#$rank §f$name §7- Job: §a" . ucfirst($job) . " §7| Level: §b" . $data["level"] . "\n";
-            if ($rank++ >= $limit) break;
+        foreach ($top as $entry) {
+            $msg .= "§e$rank. §b{$entry["username"]} §7- §a{$entry["job"]} §f(Lv. {$entry["level"]})\n";
+            $rank++;
         }
-
-        $player->sendMessage($message);
+        $player->sendMessage($msg);
     }
 }
