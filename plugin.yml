@@ -1,55 +1,12 @@
-name: JobUI
-version: 2.4.0
-api: 3.9.0
-main: hamid0740\JobUI\Main
-author: hamid0740
-website: https://github.com/hamid0740/JobUI
-depend: EconomyAPI
+name: Jobs
+version: 0.1-PreRELEASE
+api: 5.0.0
+main: SkulZOnTheYT\Jobs\Main
+author: SkulZOnTheYT
+depend: BedrockEconomy
 
 commands:
-  job:
-    description: Job UI command (By hamid0740)
-    usage: /job
-    permission: jobui.command.job
-  retire:
-    description: Retire command (To join a job use /job)
-    usage: /retire
-    permission: jobui.command.retire
-
-permissions:
-  jobui.*:
-    description: Allows player to use all commands, all earning ways and join all of the jobs of JobUI plugin
-    default: op
-  jobui.job.*:
-    description: Allows player to join all of the jobs
-    default: op
-  jobui.command.job:
-    description: Allows player to use /job
-    default: true
-  jobui.command.retire:
-    description: Allows player to use /retire
-    default: true
-  jobui.earn.break:
-    description: Allows player to earn money by a breaking job
-    default: op
-  jobui.earn.place:
-    description: Allows player to earn money by a placing job
-    default: op
-  jobui.earn.hunter:
-    description: Allows player to earn money by a killing mobs job
-    default: op
-  jobui.earn.murderer:
-    description: Allows player to earn money by a killing players job
-    default: op
-  jobui.progress.break:
-    description: Allows player to increase the job progress by a breaking job
-    default: op
-  jobui.progress.place:
-    description: Allows player to increase the job progress by a placing job
-    default: op
-  jobui.progress.hunter:
-    description: Allows player to increase the job progress by a killing mobs job
-    default: op
-  jobui.progress.murderer:
-    description: Allows player to increase the job progress by a killing players job
-    default: op
+  jobs:
+    description: Jobs system
+    aliases: [job, work]
+    usage: "/jobs | /jobs leaderboard"
