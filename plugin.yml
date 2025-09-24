@@ -7,6 +7,12 @@ depend: BedrockEconomy
 
 commands:
   jobs:
-    description: Jobs system
-    aliases: [job, work]
-    usage: "/jobs | /jobs leaderboard"
+    description: Jobs system main command
+    usage: "/jobs"
+    aliases: [job, pekerjaan, kerja]
+    permission: jobs.command
+
+permissions:
+  jobs.command:
+    description: "Allows players to use the /jobs command"
+    default: true
