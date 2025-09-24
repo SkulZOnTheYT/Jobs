@@ -174,10 +174,9 @@ class Main extends PluginBase implements Listener {
         foreach ($event->getTransaction()->getActions() as $action) {
             $item = $action->getTargetItem();
             $fishIds = [
-                VanillaItems::COD()->getTypeId(),
-                VanillaItems::SALMON()->getTypeId(),
+                VanillaItems::RAW_FISH()->getTypeId(),
+                VanillaItems::RAW_SALMON()->getTypeId(),
                 VanillaItems::PUFFERFISH()->getTypeId(),
-                VanillaItems::TROPICAL_FISH()->getTypeId(),
             ];
             if (in_array($item->getTypeId(), $fishIds, true)) {
                 $reward = $this->settingsConfig->get("rewards")["fisher"];
