@@ -1,0 +1,11 @@
+--- # Poggit-CI Manifest. Open the CI at https://poggit.pmmp.io/ci/SkulZOnTheYT/Jobs
+build-by-default: true
+branches:
+- master
+projects:
+  Jobs:
+    path: ""
+    libs:
+      - src: Frago9876543210/forms/libforms
+        version: ^1.0.0
+...
