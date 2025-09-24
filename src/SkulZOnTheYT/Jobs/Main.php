@@ -106,11 +106,11 @@ class Main extends PluginBase implements Listener {
                     BlockTypeIds::COAL_ORE, BlockTypeIds::IRON_ORE,
                     BlockTypeIds::GOLD_ORE, BlockTypeIds::DIAMOND_ORE,
                     BlockTypeIds::COPPER_ORE, BlockTypeIds::REDSTONE_ORE,
-                    BlockTypeIds::EMERALD_ORE, BlockTypeIds::LAPIS_ORE,
+                    BlockTypeIds::EMERALD_ORE, BlockTypeIds::LAPIS_LAZULI_ORE,
                     BlockTypeIds::DEEPSLATE_COAL_ORE, BlockTypeIds::DEEPSLATE_IRON_ORE,
                     BlockTypeIds::DEEPSLATE_GOLD_ORE, BlockTypeIds::DEEPSLATE_DIAMOND_ORE,
                     BlockTypeIds::DEEPSLATE_COPPER_ORE, BlockTypeIds::DEEPSLATE_REDSTONE_ORE,
-                    BlockTypeIds::DEEPSLATE_EMERALD_ORE, BlockTypeIds::DEEPSLATE_LAPIS_ORE,
+                    BlockTypeIds::DEEPSLATE_EMERALD_ORE, BlockTypeIds::DEEPSLATE_LAPIS_LAZULI_ORE,
                 ], true)) {
                     $reward = 20;
                 }
@@ -153,10 +153,9 @@ class Main extends PluginBase implements Listener {
         foreach ($event->getTransaction()->getActions() as $action) {
             $item = $action->getTargetItem();
             $fishIds = [
-                VanillaItems::COD()->getTypeId(),
-                VanillaItems::SALMON()->getTypeId(),
+                VanillaItems::RAW_FISH()->getTypeId(),
+                VanillaItems::RAW_SALMON()->getTypeId(),
                 VanillaItems::PUFFERFISH()->getTypeId(),
-                VanillaItems::TROPICAL_FISH()->getTypeId(),
             ];
             if (in_array($item->getTypeId(), $fishIds, true)) {
                 $this->addMoney($player, 15);
