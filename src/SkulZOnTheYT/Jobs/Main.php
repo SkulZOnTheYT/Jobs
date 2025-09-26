@@ -17,6 +17,9 @@ use pocketmine\player\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
 use cooldogedev\BedrockEconomy\api\BedrockEconomyAPI;
+use Ifera\ScoreHud\event\TagsResolveEvent;
+use Ifera\ScoreHud\event\PlayerTagUpdateEvent;
+use Ifera\ScoreHud\scoreboard\ScoreTag;
 use pocketmine\item\VanillaItems;
 
 class Main extends PluginBase implements Listener {
@@ -41,18 +44,60 @@ class Main extends PluginBase implements Listener {
         $this->jobsConfig->save();
     }
 
+    /**
+     * Update ScoreHud tags ketika ScoreHud resolve tag
+     */
+    public function onTagResolve(TagsResolveEvent $event): void {
+        $player = $event->getPlayer();
+        $tag = $event->getTag();
+        $xuid = $player->getXuid();
+
+        $job = $this->playerJobs["jobs"][$xuid] ?? "None";
+        $level = $this->playerJobs["levels"][$xuid]["level"] ?? 0;
+        $exp = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
+
+        switch($tag->getName()){
+            case "jobs.name":
+                $tag->setValue($job);
+                break;
+
+            case "jobs.level":
+                $tag->setValue((string)$level);
+                break;
+
+            case "jobs.exp":
+                $tag->setValue((string)$exp);
+                break;
+        }
+    }
+
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool {
-        if ($command->getName() === "jobs") {
-            if ($sender instanceof Player) {
-                if (isset($args[0]) && in_array(strtolower($args[0]), ["leaderboard", "lead"])) {
-                    $this->showLeaderboard($sender);
-                } else {
-                    $this->openJobForm($sender);
-                }
-            } else {
-                $sender->sendMessage("§cThis command can only be used in-game.");
+        if(strtolower($command->getName()) === "jobs"){
+            if(!$sender instanceof Player){
+                $sender->sendMessage("§cCommand ini hanya bisa dipakai dalam game!");
+                return true;
             }
-            return true;
+
+            if(!isset($args[0]) || strtolower($args[0]) === "help"){
+                $sender->sendMessage("§6====[ Jobs Help ]====");
+                $sender->sendMessage("§e/jobs help §7- Lihat semua command Jobs");
+                $sender->sendMessage("§e/jobs join <nama> §7- Bergabung ke sebuah job");
+                $sender->sendMessage("§e/jobs leave §7- Keluar dari job saat ini");
+                $sender->sendMessage("§e/jobs info §7- Lihat job, level, dan exp kamu");
+                return true;
+            }
+
+            if(strtolower($args[0]) === "info"){
+                $xuid = $sender->getXuid();
+                $job = $this->playerJobs["jobs"][$xuid] ?? "None";
+                $level = $this->playerJobs["levels"][$xuid]["level"] ?? 0;
+                $exp = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
+
+                $sender->sendMessage("§aJob: §f$job");
+                $sender->sendMessage("§aLevel: §f$level");
+                $sender->sendMessage("§aExp: §f$exp");
+                return true;
+            }
         }
         return false;
     }
@@ -84,6 +129,11 @@ class Main extends PluginBase implements Listener {
                     $this->playerJobs["levels"][$xuid]["exp"] = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
                     $this->playerJobs["levels"][$xuid]["username"] = $player->getName();
 
+                    // Update ScoreHud tags saat join job
+                    (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.name", $job)))->call();
+                    (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.level", (string)$this->playerJobs["levels"][$xuid]["level"])))->call();
+                    (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.exp", (string)$this->playerJobs["levels"][$xuid]["exp"])))->call();
+
                     $player->sendMessage("§aYou selected job §e" . ucfirst($job));
                 }
             }
@@ -100,6 +150,10 @@ class Main extends PluginBase implements Listener {
         $block = $event->getBlock();
         $reward = 0;
 
+        // Ambil reward dasar dari config
+        $baseReward = $this->getConfig()->getNested("rewards.$job", 0);
+        if ($baseReward <= 0) return;
+
         switch ($job) {
             case "miner":
                 if (in_array($block->getTypeId(), [
@@ -112,7 +166,7 @@ class Main extends PluginBase implements Listener {
                     BlockTypeIds::DEEPSLATE_COPPER_ORE, BlockTypeIds::DEEPSLATE_REDSTONE_ORE,
                     BlockTypeIds::DEEPSLATE_EMERALD_ORE, BlockTypeIds::DEEPSLATE_LAPIS_LAZULI_ORE,
                 ], true)) {
-                    $reward = 20;
+                    $reward = $baseReward;
                 }
                 break;
 
@@ -124,7 +178,7 @@ class Main extends PluginBase implements Listener {
                     BlockTypeIds::MANGROVE_LOG, BlockTypeIds::CHERRY_LOG,
                     BlockTypeIds::CRIMSON_STEM, BlockTypeIds::WARPED_STEM,
                 ], true)) {
-                    $reward = 10;
+                    $reward = $baseReward;
                 }
                 break;
 
@@ -133,13 +187,19 @@ class Main extends PluginBase implements Listener {
                     BlockTypeIds::WHEAT, BlockTypeIds::CARROTS,
                     BlockTypeIds::POTATOES, BlockTypeIds::BEETROOTS,
                 ], true)) {
-                    $reward = 5;
+                    $reward = $baseReward;
                 }
                 break;
         }
 
         if ($reward > 0) {
-            $this->addMoney($player, $reward);
+            // Dapatkan level pemain
+            $level = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
+
+            // Reward akhir = base * level
+            $finalReward = $reward * $level;
+
+            $this->addMoney($player, $finalReward);
         }
     }
 
@@ -176,27 +236,5 @@ class Main extends PluginBase implements Listener {
                 $player->sendPopup("§cFailed to add money to your account");
             },
         );
-    }
-
-    private function showLeaderboard(Player $player): void {
-        $entries = [];
-        foreach ($this->playerJobs["levels"] as $xuid => $data) {
-            $entries[] = [
-                "username" => $data["username"] ?? "Unknown",
-                "job" => $this->playerJobs["jobs"][$xuid] ?? "None",
-                "level" => $data["level"] ?? 1,
-            ];
-        }
-
-        usort($entries, fn($a, $b) => $b["level"] <=> $a["level"]);
-        $top = array_slice($entries, 0, 10);
-
-        $msg = "§6=== Jobs Leaderboard ===\n";
-        $rank = 1;
-        foreach ($top as $entry) {
-            $msg .= "§e$rank. §b{$entry["username"]} §7- §a{$entry["job"]} §f(Lv. {$entry["level"]})\n";
-            $rank++;
-        }
-        $player->sendMessage($msg);
     }
 }
