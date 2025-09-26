@@ -36,7 +36,6 @@ class Main extends PluginBase implements Listener {
         $this->playerJobs = $this->jobsConfig->getAll();
 
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
-        $this->getLogger()->info("Jobs Plugin Enabled!");
     }
 
     public function onDisable(): void {
@@ -121,6 +120,18 @@ class Main extends PluginBase implements Listener {
     }
 
     public function openJobForm(Player $player): void {
+        $xuid = $player->getXuid();
+        $cooldown = (int) $this->getConfig()->get("jobSwitchCooldown", 3600);
+
+        $lastSwitch = $this->playerJobs["levels"][$xuid]["lastSwitch"] ?? 0;
+        $remaining = ($lastSwitch + $cooldown) - time();
+
+        if ($remaining > 0 && isset($this->playerJobs["jobs"][$xuid])) {
+            $minutes = ceil($remaining / 60);
+            $player->sendMessage("§cKamu harus menunggu §e{$minutes} menit §csebelum bisa ganti job lagi!");
+            return;
+        }
+
         $form = new MenuForm(
             "Choose Your Job",
             "Please select your job",
@@ -146,8 +157,8 @@ class Main extends PluginBase implements Listener {
                     $this->playerJobs["levels"][$xuid]["level"] = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
                     $this->playerJobs["levels"][$xuid]["exp"] = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
                     $this->playerJobs["levels"][$xuid]["username"] = $player->getName();
+                    $this->playerJobs["levels"][$xuid]["lastSwitch"] = time(); // simpan waktu terakhir ganti
 
-                    // Update ScoreHud tags saat join job
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.name", $job)))->call();
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.level", (string)$this->playerJobs["levels"][$xuid]["level"])))->call();
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.exp", (string)$this->playerJobs["levels"][$xuid]["exp"])))->call();
@@ -159,6 +170,33 @@ class Main extends PluginBase implements Listener {
         $player->sendForm($form);
     }
 
+    private function giveJobReward(Player $player, string $xuid, string $job, int $rewardMoney, int $rewardExp, int $levelUpExp): void {
+        $level = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
+        $exp = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
+
+        // tambahin exp
+        $exp += $rewardExp;
+
+        // cek level up
+        if ($exp >= $levelUpExp) {
+            $level += intdiv($exp, $levelUpExp);
+            $exp = $exp % $levelUpExp;
+            $player->sendMessage("§6Level up! §fSekarang level §a$level");
+        }
+
+        // simpan kembali
+        $this->playerJobs["levels"][$xuid]["level"] = $level;
+        $this->playerJobs["levels"][$xuid]["exp"] = $exp;
+
+        // kasih duit (money scale by level biar makin gede)
+        $this->addMoney($player, $rewardMoney * $level);
+
+        // update ScoreHud tags
+        (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.exp", (string)$exp)))->call();
+        (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.level", (string)$level)))->call();
+        (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.name", $job)))->call();
+    }
+
     public function onBlockBreak(BlockBreakEvent $event): void {
         $player = $event->getPlayer();
         $xuid = $player->getXuid();
@@ -166,11 +204,14 @@ class Main extends PluginBase implements Listener {
         if ($job === null) return;
 
         $block = $event->getBlock();
-        $reward = 0;
+        $rewardMoney = 0;
+        $rewardExp = 0;
 
-        // Ambil reward dasar dari config
-        $baseReward = $this->getConfig()->getNested("rewards.$job", 0);
-        if ($baseReward <= 0) return;
+        // ambil reward dari config
+        $jobReward = $this->getConfig()->getNested("rewards.$job", []);
+        $baseMoney = $jobReward["money"] ?? 0;
+        $baseExp = $jobReward["exp"] ?? 0;
+        $levelUpExp = (int) $this->getConfig()->get("level_up_exp", 100);
 
         switch ($job) {
             case "miner":
@@ -184,7 +225,8 @@ class Main extends PluginBase implements Listener {
                     BlockTypeIds::DEEPSLATE_COPPER_ORE, BlockTypeIds::DEEPSLATE_REDSTONE_ORE,
                     BlockTypeIds::DEEPSLATE_EMERALD_ORE, BlockTypeIds::DEEPSLATE_LAPIS_LAZULI_ORE,
                 ], true)) {
-                    $reward = $baseReward;
+                    $rewardMoney = $baseMoney;
+                    $rewardExp = $baseExp;
                 }
                 break;
 
@@ -196,7 +238,8 @@ class Main extends PluginBase implements Listener {
                     BlockTypeIds::MANGROVE_LOG, BlockTypeIds::CHERRY_LOG,
                     BlockTypeIds::CRIMSON_STEM, BlockTypeIds::WARPED_STEM,
                 ], true)) {
-                    $reward = $baseReward;
+                    $rewardMoney = $baseMoney;
+                    $rewardExp = $baseExp;
                 }
                 break;
 
@@ -205,19 +248,14 @@ class Main extends PluginBase implements Listener {
                     BlockTypeIds::WHEAT, BlockTypeIds::CARROTS,
                     BlockTypeIds::POTATOES, BlockTypeIds::BEETROOTS,
                 ], true)) {
-                    $reward = $baseReward;
+                    $rewardMoney = $baseMoney;
+                    $rewardExp = $baseExp;
                 }
                 break;
         }
 
-        if ($reward > 0) {
-            // Dapatkan level pemain
-            $level = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
-
-            // Reward akhir = base * level
-            $finalReward = $reward * $level;
-
-            $this->addMoney($player, $finalReward);
+        if ($rewardMoney > 0 || $rewardExp > 0) {
+            $this->giveJobReward($player, $xuid, $job, $rewardMoney, $rewardExp, $levelUpExp);
         }
     }
 
@@ -228,6 +266,11 @@ class Main extends PluginBase implements Listener {
         $job = $this->playerJobs["jobs"][$xuid] ?? null;
         if ($job !== "fisher") return;
 
+        $jobReward = $this->getConfig()->getNested("rewards.fisher", []);
+        $baseMoney = $jobReward["money"] ?? 0;
+        $baseExp = $jobReward["exp"] ?? 0;
+        $levelUpExp = (int) $this->getConfig()->get("level_up_exp", 100);
+
         foreach ($event->getTransaction()->getActions() as $action) {
             $item = $action->getTargetItem();
             $fishIds = [
@@ -235,8 +278,9 @@ class Main extends PluginBase implements Listener {
                 VanillaItems::RAW_SALMON()->getTypeId(),
                 VanillaItems::PUFFERFISH()->getTypeId(),
             ];
+
             if (in_array($item->getTypeId(), $fishIds, true)) {
-                $this->addMoney($player, 15);
+                $this->giveJobReward($player, $xuid, $job, $baseMoney, $baseExp, $levelUpExp);
             }
         }
     }

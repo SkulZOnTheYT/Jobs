@@ -5,23 +5,21 @@ jobSwitchCooldown: 3600   # default 1 jam
 
 # Reward multipliers per job (base money before level scaling)
 rewards:
-  miner: 20
-  woodcutter: 10
-  farmer: 5
-  fisher: 15
-
-# XP gain per action
-xp:
-  miner: 5
-  woodcutter: 3
-  farmer: 2
-  fisher: 4
+  miner:
+    money: 10
+    exp: 5
+  woodcutter:
+    money: 8
+    exp: 4
+  fisher:
+    money: 6
+    exp: 3
+  farmer:
+    money: 5
+    exp: 2
 
 # Level system
-level:
-  xp_required: 100   # base XP required to level up
-  scaling: 1.0       # multiplier per level (1.0 = linear, >1 = harder each level)
-
+level_up_exp: 100
 
 # Job shop items
 shop:
