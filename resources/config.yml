@@ -21,15 +21,6 @@ rewards:
 # Level system
 level_up_exp: 100
 
-# Job shop items
-shop:
-  fisher_lure:
-    price: 500
-    item: fishing_rod
-  miner_torch:
-    price: 300
-    item: torch:16   # item:count format
-
 # Leaderboard
 leaderboard:
   top_limit: 10   # show top 10 players

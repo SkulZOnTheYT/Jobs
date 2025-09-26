@@ -1,0 +1,89 @@
+miner:
+  name: "Miner Shop"
+  items:
+    - id: "diamond_pickaxe"
+      count: 1
+      price: 500
+      customName: "&bDiamond Pickaxe"
+      lore:
+        - "&7Alat tambang legendaris"
+        - "&aHarga: 500 coin"
+    - id: "torch"
+      count: 16
+      price: 50
+      customName: "&eTorch"
+      lore:
+        - "&7Biar tambangmu terang"
+        - "&aHarga: 50 coin"
+
+woodcutter:
+  name: "Woodcutter Shop"
+  items:
+    - id: "iron_axe"
+      count: 1
+      price: 300
+      customName: "&fIron Axe"
+      lore:
+        - "&7Kapak kuat buat nebang"
+        - "&aHarga: 300 coin"
+    - id: "oak_sapling"
+      count: 5
+      price: 40
+      customName: "&2Oak Sapling"
+      lore:
+        - "&7Tanam pohon biar ga gundul"
+        - "&aHarga: 40 coin"
+
+farmer:
+  name: "Farmer Shop"
+  items:
+    - id: "wheat_seeds"
+      count: 10
+      price: 20
+      customName: "&aWheat Seeds"
+      lore:
+        - "&7Bibit gandum"
+        - "&aHarga: 20 coin"
+    - id: "iron_hoe"
+      count: 1
+      price: 200
+      customName: "&fIron Hoe"
+      lore:
+        - "&7Alat wajib farmer"
+        - "&aHarga: 200 coin"
+
+hunter:
+  name: "Hunter Shop"
+  items:
+    - id: "bow"
+      count: 1
+      price: 250
+      customName: "&6Bow"
+      lore:
+        - "&7Busur untuk berburu"
+        - "&aHarga: 250 coin"
+    - id: "arrow"
+      count: 32
+      price: 100
+      customName: "&fArrow"
+      lore:
+        - "&7Amunisi untuk bow"
+        - "&aHarga: 100 coin"
+
+fisherman:
+  name: "Fisherman Shop"
+  items:
+    - id: "fishing_rod"
+      count: 1
+      price: 150
+      customName: "&bFishing Rod"
+      lore:
+        - "&7Joran untuk memancing"
+        - "&aHarga: 150 coin"
+    - id: "cooked_fish"
+      count: 5
+      price: 60
+      customName: "&6Cooked Fish"
+      lore:
+        - "&7Ikan matang siap makan"
+        - "&aHarga: 60 coin"

@@ -30,6 +30,7 @@ use pocketmine\item\StringToItemParser;
 class Main extends PluginBase implements Listener {
 
     private Config $jobsConfig;
+    public Config $shopConfig;
     private array $playerJobs = [];
 
     public function onEnable(): void {
@@ -39,7 +40,8 @@ class Main extends PluginBase implements Listener {
             "levels" => []
         ]);
         $this->playerJobs = $this->jobsConfig->getAll();
-
+        $this->saveResource("shop.yml");
+        $this->shopConfig = new Config($this->getDataFolder() . "shop.yml", Config::YAML);  
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
 
         if(!InvMenuHandler::isRegistered()){
@@ -194,7 +196,7 @@ public function openJobShop(Player $player): void {
         return;
     }
 
-    $shopItems = $this->getConfig()->get("shops")[$job] ?? null;
+    $shopItems = $this->shopConfig->get($job)["items"] ?? null;
     if ($shopItems === null) {
         $player->sendMessage("§cShop untuk job $job belum diatur.");
         return;
