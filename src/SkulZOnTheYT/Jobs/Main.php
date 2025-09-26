@@ -26,6 +26,7 @@ use muqsit\invmenu\InvMenuHandler;
 use muqsit\invmenu\transaction\InvMenuTransaction;
 use muqsit\invmenu\transaction\InvMenuTransactionResult;
 use pocketmine\item\StringToItemParser;
+use pocketmine\utils\TextFormat;
 
 class Main extends PluginBase implements Listener {
 
@@ -58,6 +59,7 @@ class Main extends PluginBase implements Listener {
     public function onTagResolve(TagsResolveEvent $event): void {
         /** @phpstan-ignore-next-line */
         $player = $event->getPlayer();
+        /** @phpstan-ignore-next-line */
         $tag = $event->getTag();
         $xuid = $player->getXuid();
 
@@ -211,11 +213,8 @@ public function openJobShop(Player $player): void {
         if ($item === null) {
             continue; // skip item yang salah id
         }
-        $item->setCustomName($itemData["name"]);
-        $item->setLore(array_merge(
-            $itemData["lore"] ?? [],
-            ["§eHarga: " . $itemData["price"]]
-        ));
+        $item->setCustomName(TextFormat::colorize($itemData["customName"]));
+        $item->setLore(array_map([TextFormat::class, "colorize"], $itemData["lore"] ?? []));
         $inventory->setItem((int)$slot, $item);
     }
 
