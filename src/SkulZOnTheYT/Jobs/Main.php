@@ -16,11 +16,16 @@ use pocketmine\event\Listener;
 use pocketmine\player\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
+use pocketmine\item\VanillaItems;
 use cooldogedev\BedrockEconomy\api\BedrockEconomyAPI;
 use Ifera\ScoreHud\event\TagsResolveEvent;
 use Ifera\ScoreHud\event\PlayerTagUpdateEvent;
 use Ifera\ScoreHud\scoreboard\ScoreTag;
-use pocketmine\item\VanillaItems;
+use muqsit\invmenu\InvMenu;
+use muqsit\invmenu\InvMenuHandler;
+use muqsit\invmenu\transaction\InvMenuTransaction;
+use muqsit\invmenu\transaction\InvMenuTransactionResult;
+use pocketmine\item\StringToItemParser;
 
 class Main extends PluginBase implements Listener {
 
@@ -36,6 +41,10 @@ class Main extends PluginBase implements Listener {
         $this->playerJobs = $this->jobsConfig->getAll();
 
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
+
+        if(!InvMenuHandler::isRegistered()){
+            InvMenuHandler::register($this);
+        }
     }
 
     public function onDisable(): void {
@@ -43,10 +52,9 @@ class Main extends PluginBase implements Listener {
         $this->jobsConfig->save();
     }
 
-    /**
-     * Update ScoreHud tags ketika ScoreHud resolve tag
-     */
+    /** @phpstan-ignore-next-line */
     public function onTagResolve(TagsResolveEvent $event): void {
+        /** @phpstan-ignore-next-line */
         $player = $event->getPlayer();
         $tag = $event->getTag();
         $xuid = $player->getXuid();
@@ -109,7 +117,11 @@ class Main extends PluginBase implements Listener {
                 case "lead":
                     $this->showLeaderboard($sender);
                     break;
-    
+
+                case "shop":
+                    $this->openJobShop($sender);
+                    break;
+
                 default:
                     $sender->sendMessage("§cSubcommand tidak dikenal! Ketik §e/jobs help");
                     break;
@@ -159,8 +171,11 @@ class Main extends PluginBase implements Listener {
                     $this->playerJobs["levels"][$xuid]["username"] = $player->getName();
                     $this->playerJobs["levels"][$xuid]["lastSwitch"] = time(); // simpan waktu terakhir ganti
 
+                    /** @phpstan-ignore-next-line */
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.name", $job)))->call();
+                    /** @phpstan-ignore-next-line */
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.level", (string)$this->playerJobs["levels"][$xuid]["level"])))->call();
+                    /** @phpstan-ignore-next-line */
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.exp", (string)$this->playerJobs["levels"][$xuid]["exp"])))->call();
 
                     $player->sendMessage("§aYou selected job §e" . ucfirst($job));
@@ -169,6 +184,76 @@ class Main extends PluginBase implements Listener {
         );
         $player->sendForm($form);
     }
+
+public function openJobShop(Player $player): void {
+    $xuid = $player->getXuid();
+    $job = $this->playerJobs["jobs"][$xuid] ?? null;
+
+    if ($job === null) {
+        $player->sendMessage("§cKamu belum punya job! Pakai /jobs join dulu.");
+        return;
+    }
+
+    $shopItems = $this->getConfig()->get("shops")[$job] ?? null;
+    if ($shopItems === null) {
+        $player->sendMessage("§cShop untuk job $job belum diatur.");
+        return;
+    }
+
+    $menu = InvMenu::create(InvMenu::TYPE_DOUBLE_CHEST);
+    $menu->setName("§6Job Shop: §e" . ucfirst($job));
+    $inventory = $menu->getInventory();
+
+    foreach ($shopItems as $slot => $itemData) {
+        $item = StringToItemParser::getInstance()->parse($itemData["id"]);
+        if ($item === null) {
+            continue; // skip item yang salah id
+        }
+        $item->setCustomName($itemData["name"]);
+        $item->setLore(array_merge(
+            $itemData["lore"] ?? [],
+            ["§eHarga: " . $itemData["price"]]
+        ));
+        $inventory->setItem((int)$slot, $item);
+    }
+
+    $menu->setListener(function(InvMenuTransaction $transaction) use ($shopItems): InvMenuTransactionResult {
+        $player = $transaction->getPlayer();
+        $slot = $transaction->getAction()->getSlot();
+
+        if (!isset($shopItems[$slot])) {
+            return $transaction->discard();
+        }
+
+        $itemData = $shopItems[$slot];
+        $price = (int)$itemData["price"];
+
+        // Cek balance pakai BedrockEconomy (Closure API)
+        BedrockEconomyAPI::CLOSURE()->subtract(
+            xuid: $player->getXuid(),
+            username: $player->getName(),
+            amount: $price,
+            decimals: 0,
+            onSuccess: function () use ($player, $itemData): void {
+                $item = StringToItemParser::getInstance()->parse($itemData["id"]);
+                if ($item !== null) {
+                    $item->setCustomName($itemData["name"]);
+                    $item->setLore($itemData["lore"] ?? []);
+                    $player->getInventory()->addItem($item);
+                }
+                $player->sendMessage("§aKamu membeli " . $itemData["name"] . " §7seharga §e" . $itemData["price"] . "!");
+            },
+            onError: function (\Throwable $ex) use ($player, $itemData): void {
+                $player->sendMessage("§cTransaksi gagal saat membeli " . $itemData["name"]);
+            }
+        );
+
+        return $transaction->discard(); // biar item gak bisa diambil langsung dari chest
+    });
+
+    $menu->send($player);
+}
+
 
     private function giveJobReward(Player $player, string $xuid, string $job, int $rewardMoney, int $rewardExp, int $levelUpExp): void {
         $level = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
@@ -191,9 +276,11 @@ class Main extends PluginBase implements Listener {
         // kasih duit (money scale by level biar makin gede)
         $this->addMoney($player, $rewardMoney * $level);
 
-        // update ScoreHud tags
+        /** @phpstan-ignore-next-line */
         (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.exp", (string)$exp)))->call();
+        /** @phpstan-ignore-next-line */
         (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.level", (string)$level)))->call();
+        /** @phpstan-ignore-next-line */
         (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.name", $job)))->call();
     }
 
@@ -216,6 +303,7 @@ class Main extends PluginBase implements Listener {
         switch ($job) {
             case "miner":
                 if (in_array($block->getTypeId(), [
+                    BlockTypeIds::STONE, BlockTypeIds::DEEPSLATE,
                     BlockTypeIds::COAL_ORE, BlockTypeIds::IRON_ORE,
                     BlockTypeIds::GOLD_ORE, BlockTypeIds::DIAMOND_ORE,
                     BlockTypeIds::COPPER_ORE, BlockTypeIds::REDSTONE_ORE,
@@ -247,6 +335,7 @@ class Main extends PluginBase implements Listener {
                 if (in_array($block->getTypeId(), [
                     BlockTypeIds::WHEAT, BlockTypeIds::CARROTS,
                     BlockTypeIds::POTATOES, BlockTypeIds::BEETROOTS,
+                    BlockTypeIds::PUMPKIN, BlockTypeIds::MELON,
                 ], true)) {
                     $rewardMoney = $baseMoney;
                     $rewardExp = $baseExp;

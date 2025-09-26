@@ -8,4 +8,7 @@ projects:
     libs:
       - src: Frago9876543210/forms/libforms
         version: ^1.0.0
+      - src: muqsit/InvMenu/InvMenu
++        branch: "4.0"
++        version: ^4.4.1
 ...
