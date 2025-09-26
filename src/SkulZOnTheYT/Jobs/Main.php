@@ -78,36 +78,43 @@ class Main extends PluginBase implements Listener {
                 return true;
             }
     
-            $sub = strtolower($args[0] ?? "help");
+           if(!isset($args[0])){
+				$sender->sendMessage("§eUse §f/jobs help §efor a list of commands.");
+				return true;
+			}
+
+			switch(strtolower($args[0])){
+                case "join":
+                    $this->openJobForm($sender);
+                    break;
+                case "help":
+                    $sender->sendMessage("§6====[ Jobs Help ]====");
+                    $sender->sendMessage("§e/jobs join §7- Buka menu untuk memilih job");
+                    $sender->sendMessage("§e/jobs help §7- Lihat semua command Jobs");
+                    $sender->sendMessage("§e/jobs leaderboard §7- Lihat leaderboard job");
+                    $sender->sendMessage("§e/jobs info §7- Lihat job, level, dan exp kamu");
+                    break;
     
-            if ($sub === "help") {
-                $sender->sendMessage("§6====[ Jobs Help ]====");
-                $sender->sendMessage("§e/jobs help §7- Lihat semua command Jobs");
-                $sender->sendMessage("§e/jobs §7- Bergabung ke sebuah job");
-                $sender->sendMessage("§e/jobs leaderboard §7- leaderboard job");
-                $sender->sendMessage("§e/jobs info §7- Lihat job, level, dan exp kamu");
-                return true;
+                case "info":
+                    $xuid = $sender->getXuid();
+                    $job = $this->playerJobs["jobs"][$xuid] ?? "None";
+                    $level = $this->playerJobs["levels"][$xuid]["level"] ?? 0;
+                    $exp = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
+    
+                    $sender->sendMessage("§aJob: §f$job");
+                    $sender->sendMessage("§aLevel: §f$level");
+                    $sender->sendMessage("§aExp: §f$exp");
+                    break;
+    
+                case "leaderboard":
+                case "lead":
+                    $this->showLeaderboard($sender);
+                    break;
+    
+                default:
+                    $sender->sendMessage("§cSubcommand tidak dikenal! Ketik §e/jobs help");
+                    break;
             }
-    
-            if ($sub === "info") {
-                $xuid = $sender->getXuid();
-                $job = $this->playerJobs["jobs"][$xuid] ?? "None";
-                $level = $this->playerJobs["levels"][$xuid]["level"] ?? 0;
-                $exp = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
-    
-                $sender->sendMessage("§aJob: §f$job");
-                $sender->sendMessage("§aLevel: §f$level");
-                $sender->sendMessage("§aExp: §f$exp");
-                return true;
-            }
-    
-            if (in_array($sub, ["leaderboard", "lead"], true)) {
-                $this->showLeaderboard($sender);
-                return true;
-            }
-    
-            // kalau tidak ada argumen lain, buka form
-            $this->openJobForm($sender);
             return true;
         }
         return false;
