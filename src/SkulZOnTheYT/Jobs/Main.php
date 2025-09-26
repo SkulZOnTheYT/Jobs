@@ -98,6 +98,13 @@ class Main extends PluginBase implements Listener {
                 $sender->sendMessage("§aExp: §f$exp");
                 return true;
             }
+            
+            if (isset($args[0]) && in_array(strtolower($args[0]), ["leaderboard", "lead"])) {
+                $this->showLeaderboard($sender);
+                
+            } else {
+                $this->openJobForm($sender);
+            }
         }
         return false;
     }
@@ -236,5 +243,27 @@ class Main extends PluginBase implements Listener {
                 $player->sendPopup("§cFailed to add money to your account");
             },
         );
+    }
+
+    private function showLeaderboard(Player $player): void {
+        $entries = [];
+        foreach ($this->playerJobs["levels"] as $xuid => $data) {
+            $entries[] = [
+                "username" => $data["username"] ?? "Unknown",
+                "job" => $this->playerJobs["jobs"][$xuid] ?? "None",
+                "level" => $data["level"] ?? 1,
+            ];
+        }
+
+        usort($entries, fn($a, $b) => $b["level"] <=> $a["level"]);
+        $top = array_slice($entries, 0, 10);
+
+        $msg = "§6=== Jobs Leaderboard ===\n";
+        $rank = 1;
+        foreach ($top as $entry) {
+            $msg .= "§e$rank. §b{$entry["username"]} §7- §a{$entry["job"]} §f(Lv. {$entry["level"]})\n";
+            $rank++;
+        }
+        $player->sendMessage($msg);
     }
 }
