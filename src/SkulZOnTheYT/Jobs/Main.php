@@ -72,39 +72,43 @@ class Main extends PluginBase implements Listener {
     }
 
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool {
-        if(strtolower($command->getName()) === "jobs"){
-            if(!$sender instanceof Player){
+        if (strtolower($command->getName()) === "jobs") {
+            if (!$sender instanceof Player) {
                 $sender->sendMessage("§cCommand ini hanya bisa dipakai dalam game!");
                 return true;
             }
-
-            if(!isset($args[0]) || strtolower($args[0]) === "help"){
+    
+            $sub = strtolower($args[0] ?? "help");
+    
+            if ($sub === "help") {
                 $sender->sendMessage("§6====[ Jobs Help ]====");
                 $sender->sendMessage("§e/jobs help §7- Lihat semua command Jobs");
-                $sender->sendMessage("§e/jobs join <nama> §7- Bergabung ke sebuah job");
-                $sender->sendMessage("§e/jobs leave §7- Keluar dari job saat ini");
+                $sender->sendMessage("§e/jobs §7- Bergabung ke sebuah job");
+                $sender->sendMessage("§e/jobs leaderboard §7- leaderboard job");
                 $sender->sendMessage("§e/jobs info §7- Lihat job, level, dan exp kamu");
                 return true;
             }
-
-            if(strtolower($args[0]) === "info"){
+    
+            if ($sub === "info") {
                 $xuid = $sender->getXuid();
                 $job = $this->playerJobs["jobs"][$xuid] ?? "None";
                 $level = $this->playerJobs["levels"][$xuid]["level"] ?? 0;
                 $exp = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
-
+    
                 $sender->sendMessage("§aJob: §f$job");
                 $sender->sendMessage("§aLevel: §f$level");
                 $sender->sendMessage("§aExp: §f$exp");
                 return true;
             }
-            
-            if (isset($args[0]) && in_array(strtolower($args[0]), ["leaderboard", "lead"])) {
+    
+            if (in_array($sub, ["leaderboard", "lead"], true)) {
                 $this->showLeaderboard($sender);
-                
-            } else {
-                $this->openJobForm($sender);
+                return true;
             }
+    
+            // kalau tidak ada argumen lain, buka form
+            $this->openJobForm($sender);
+            return true;
         }
         return false;
     }
