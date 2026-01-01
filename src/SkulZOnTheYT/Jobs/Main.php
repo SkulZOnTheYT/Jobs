@@ -16,7 +16,9 @@ use pocketmine\event\Listener;
 use pocketmine\player\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
+use pocketmine\utils\TextFormat;
 use pocketmine\item\VanillaItems;
+use pocketmine\item\StringToItemParser;
 use cooldogedev\BedrockEconomy\api\BedrockEconomyAPI;
 use Ifera\ScoreHud\event\TagsResolveEvent;
 use Ifera\ScoreHud\event\PlayerTagUpdateEvent;
@@ -25,8 +27,7 @@ use muqsit\invmenu\InvMenu;
 use muqsit\invmenu\InvMenuHandler;
 use muqsit\invmenu\transaction\InvMenuTransaction;
 use muqsit\invmenu\transaction\InvMenuTransactionResult;
-use pocketmine\item\StringToItemParser;
-use pocketmine\utils\TextFormat;
+use muqsit\invmenu\transaction\DeterministicInvMenuTransaction;
 
 class Main extends PluginBase implements Listener {
 
@@ -57,9 +58,7 @@ class Main extends PluginBase implements Listener {
 
     /** @phpstan-ignore-next-line */
     public function onTagResolve(TagsResolveEvent $event): void {
-        /** @phpstan-ignore-next-line */
         $player = $event->getPlayer();
-        /** @phpstan-ignore-next-line */
         $tag = $event->getTag();
         $xuid = $player->getXuid();
 
@@ -71,11 +70,9 @@ class Main extends PluginBase implements Listener {
             case "jobs.name":
                 $tag->setValue($job);
                 break;
-
             case "jobs.level":
                 $tag->setValue((string)$level);
                 break;
-
             case "jobs.exp":
                 $tag->setValue((string)$exp);
                 break;
@@ -85,38 +82,39 @@ class Main extends PluginBase implements Listener {
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool {
         if (strtolower($command->getName()) === "jobs") {
             if (!$sender instanceof Player) {
-                $sender->sendMessage("§cCommand ini hanya bisa dipakai dalam game!");
+                $sender->sendMessage("§cThis command can only be used in-game!");
                 return true;
             }
-    
-           if(!isset($args[0])){
-				$sender->sendMessage("§eUse §f/jobs help §efor a list of commands.");
-				return true;
-			}
 
-			switch(strtolower($args[0])){
+            if(!isset($args[0])){
+                $sender->sendMessage("§eUse §f/jobs help §efor a list of commands.");
+                return true;
+            }
+
+            switch(strtolower($args[0])){
                 case "join":
                     $this->openJobForm($sender);
                     break;
+
                 case "help":
                     $sender->sendMessage("§6====[ Jobs Help ]====");
-                    $sender->sendMessage("§e/jobs join §7- Buka menu untuk memilih job");
-                    $sender->sendMessage("§e/jobs help §7- Lihat semua command Jobs");
-                    $sender->sendMessage("§e/jobs leaderboard §7- Lihat leaderboard job");
-                    $sender->sendMessage("§e/jobs info §7- Lihat job, level, dan exp kamu");
+                    $sender->sendMessage("§e/jobs join §7- Open the job selection menu");
+                    $sender->sendMessage("§e/jobs help §7- View all Jobs commands");
+                    $sender->sendMessage("§e/jobs leaderboard §7- View the jobs leaderboard");
+                    $sender->sendMessage("§e/jobs info §7- View your job, level, and exp");
                     break;
-    
+
                 case "info":
                     $xuid = $sender->getXuid();
                     $job = $this->playerJobs["jobs"][$xuid] ?? "None";
                     $level = $this->playerJobs["levels"][$xuid]["level"] ?? 0;
                     $exp = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
-    
+
                     $sender->sendMessage("§aJob: §f$job");
                     $sender->sendMessage("§aLevel: §f$level");
                     $sender->sendMessage("§aExp: §f$exp");
                     break;
-    
+
                 case "leaderboard":
                 case "lead":
                     $this->showLeaderboard($sender);
@@ -127,7 +125,7 @@ class Main extends PluginBase implements Listener {
                     break;
 
                 default:
-                    $sender->sendMessage("§cSubcommand tidak dikenal! Ketik §e/jobs help");
+                    $sender->sendMessage("§cUnknown subcommand! Type §e/jobs help");
                     break;
             }
             return true;
@@ -144,7 +142,7 @@ class Main extends PluginBase implements Listener {
 
         if ($remaining > 0 && isset($this->playerJobs["jobs"][$xuid])) {
             $minutes = ceil($remaining / 60);
-            $player->sendMessage("§cKamu harus menunggu §e{$minutes} menit §csebelum bisa ganti job lagi!");
+            $player->sendMessage("§cYou must wait §e{$minutes} minutes §cbefore changing jobs again!");
             return;
         }
 
@@ -164,97 +162,129 @@ class Main extends PluginBase implements Listener {
                     2 => "fisher",
                     3 => "farmer",
                 ];
-                $index = $selected->getValue();
-                $job = $jobMap[$index] ?? null;
+                $job = $jobMap[$selected->getValue()] ?? null;
 
                 if ($job !== null) {
                     $xuid = $player->getXuid();
                     $this->playerJobs["jobs"][$xuid] = $job;
-                    $this->playerJobs["levels"][$xuid]["level"] = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
-                    $this->playerJobs["levels"][$xuid]["exp"] = $this->playerJobs["levels"][$xuid]["exp"] ?? 0;
+                    $this->playerJobs["levels"][$xuid]["level"] ??= 1;
+                    $this->playerJobs["levels"][$xuid]["exp"] ??= 0;
                     $this->playerJobs["levels"][$xuid]["username"] = $player->getName();
-                    $this->playerJobs["levels"][$xuid]["lastSwitch"] = time(); // simpan waktu terakhir ganti
+                    $this->playerJobs["levels"][$xuid]["lastSwitch"] = time();
 
-                    /** @phpstan-ignore-next-line */
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.name", $job)))->call();
-                    /** @phpstan-ignore-next-line */
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.level", (string)$this->playerJobs["levels"][$xuid]["level"])))->call();
-                    /** @phpstan-ignore-next-line */
                     (new PlayerTagUpdateEvent($player, new ScoreTag("jobs.exp", (string)$this->playerJobs["levels"][$xuid]["exp"])))->call();
 
-                    $player->sendMessage("§aYou selected job §e" . ucfirst($job));
+                    $player->sendMessage("§aYou selected the job §e" . ucfirst($job));
                 }
             }
         );
         $player->sendForm($form);
     }
 
-public function openJobShop(Player $player): void {
-    $xuid = $player->getXuid();
-    $job = $this->playerJobs["jobs"][$xuid] ?? null;
+    public function openJobShop(Player $player) : void{
+        $xuid = $player->getXuid();
+        $job = $this->playerJobs["jobs"][$xuid] ?? null;
 
-    if ($job === null) {
-        $player->sendMessage("§cKamu belum punya job! Pakai /jobs join dulu.");
-        return;
-    }
-
-    $shopItems = $this->shopConfig->get($job)["items"] ?? null;
-    if ($shopItems === null) {
-        $player->sendMessage("§cShop untuk job $job belum diatur.");
-        return;
-    }
-
-    $menu = InvMenu::create(InvMenu::TYPE_DOUBLE_CHEST);
-    $menu->setName("§6Job Shop: §e" . ucfirst($job));
-    $inventory = $menu->getInventory();
-
-    foreach ($shopItems as $slot => $itemData) {
-        $item = StringToItemParser::getInstance()->parse($itemData["id"]);
-        if ($item === null) {
-            continue; // skip item yang salah id
-        }
-        $item->setCustomName(TextFormat::colorize($itemData["customName"]));
-        $item->setLore(array_map([TextFormat::class, "colorize"], $itemData["lore"] ?? []));
-        $inventory->setItem((int)$slot, $item);
-    }
-
-    $menu->setListener(function(InvMenuTransaction $transaction) use ($shopItems): InvMenuTransactionResult {
-        $player = $transaction->getPlayer();
-        $slot = $transaction->getAction()->getSlot();
-
-        if (!isset($shopItems[$slot])) {
-            return $transaction->discard();
+        if($job === null){
+            $player->sendMessage("§cYou don't have a job yet! Use /jobs join first.");
+            return;
         }
 
-        $itemData = $shopItems[$slot];
-        $price = (int)$itemData["price"];
+        $jobData = $this->shopConfig->get($job);
+        if($jobData === null || !isset($jobData["items"])){
+            $player->sendMessage("§cThe shop for job §e{$job} §cis not configured yet.");
+            return;
+        }
 
-        // Cek balance pakai BedrockEconomy (Closure API)
-        BedrockEconomyAPI::CLOSURE()->subtract(
-            xuid: $player->getXuid(),
-            username: $player->getName(),
-            amount: $price,
-            decimals: 0,
-            onSuccess: function () use ($player, $itemData): void {
-                $item = StringToItemParser::getInstance()->parse($itemData["id"]);
-                if ($item !== null) {
-                    $item->setCustomName($itemData["name"]);
-                    $item->setLore($itemData["lore"] ?? []);
-                    $player->getInventory()->addItem($item);
-                }
-                $player->sendMessage("§aKamu membeli " . $itemData["name"] . " §7seharga §e" . $itemData["price"] . "!");
-            },
-            onError: function (\Throwable $ex) use ($player, $itemData): void {
-                $player->sendMessage("§cTransaksi gagal saat membeli " . $itemData["name"]);
+        $shopItems = $jobData["items"];
+
+        $menu = InvMenu::create(InvMenu::TYPE_DOUBLE_CHEST);
+        $menu->setName("§6Job Shop: §e" . ucfirst($job));
+
+        $inventory = $menu->getInventory();
+
+        foreach($shopItems as $slot => $itemData){
+            $item = StringToItemParser::getInstance()->parse($itemData["id"] ?? "");
+            if($item === null){
+                continue;
             }
-        );
 
-        return $transaction->discard(); // biar item gak bisa diambil langsung dari chest
-    });
+            $item->setCustomName(
+                TextFormat::colorize($itemData["customName"] ?? $itemData["name"] ?? "Item")
+            );
 
-    $menu->send($player);
-}
+            if(isset($itemData["lore"])){
+                $item->setLore(array_map(
+                    [TextFormat::class, "colorize"],
+                    $itemData["lore"]
+                ));
+            }
 
+            $inventory->setItem((int) $slot, $item);
+        }
+
+        $menu->setListener(InvMenu::readonly(
+            function(DeterministicInvMenuTransaction $transaction) use ($shopItems) : void{
+                $player = $transaction->getPlayer();
+                $itemClicked = $transaction->getItemClicked();
+
+                if($itemClicked->isNull()){
+                    return;
+                }
+
+                $slot = $transaction->getAction()->getSlot();
+                if(!isset($shopItems[$slot])){
+                    return;
+                }
+
+                $itemData = $shopItems[$slot];
+                $price = (int) ($itemData["price"] ?? 0);
+                $player->removeCurrentWindow();
+
+                BedrockEconomyAPI::CLOSURE()->subtract(
+                    xuid: $player->getXuid(),
+                    username: $player->getName(),
+                    amount: $price,
+                    decimals: 0,
+                    onSuccess: function() use ($player, $itemData) : void{
+                        $item = StringToItemParser::getInstance()->parse($itemData["id"] ?? "");
+                        if($item !== null){
+                            if(isset($itemData["customName"])){
+                                $item->setCustomName(TextFormat::colorize($itemData["customName"]));
+                            }
+                            if(isset($itemData["lore"])){
+                                $item->setLore(array_map(
+                                    [TextFormat::class, "colorize"],
+                                    $itemData["lore"]
+                                ));
+                            }
+                            $player->getInventory()->addItem($item);
+                        }
+
+                        $player->sendMessage(
+                            "§aYou bought §e{$itemData["name"]} §afor §6{$itemData["price"]}"
+                        );
+                    },
+                    onError: function() use ($player, $itemData) : void{
+                        $player->sendMessage(
+                            "§cYou don't have enough money to buy §e{$itemData["name"]}§c!"
+                        );
+                    }
+                );
+            }
+        ));
+
+        // 🔹 FIX async invmenu
+        $player->removeCurrentWindow();
+
+        $menu->send($player, null, function(bool $success) use ($player) : void{
+            if(!$success){
+                $player->sendMessage("§cFailed to open Job Shop.");
+            }
+        });
+    }
 
     private function giveJobReward(Player $player, string $xuid, string $job, int $rewardMoney, int $rewardExp, int $levelUpExp): void {
         $level = $this->playerJobs["levels"][$xuid]["level"] ?? 1;
@@ -267,7 +297,7 @@ public function openJobShop(Player $player): void {
         if ($exp >= $levelUpExp) {
             $level += intdiv($exp, $levelUpExp);
             $exp = $exp % $levelUpExp;
-            $player->sendMessage("§6Level up! §fSekarang level §a$level");
+            $player->sendMessage("§6Level up! §fNow Level §a$level");
         }
 
         // simpan kembali
